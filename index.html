@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>TicToeTic ⚡ BamBam</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#020508; --sur:rgba(0,245,255,.04); --bdr:rgba(0,245,255,.12);
+  --cyan:#00f5ff; --grn:#39ff14; --gold:#ffd700; --red:#ff2d55;
+  --pur:#bf00ff; --tx:#cce8ff; --sub:rgba(180,230,255,.38);
+  --glow-c:rgba(0,245,255,.35); --glow-g:rgba(57,255,20,.3);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow-x:hidden;}
+body{font-family:'Rajdhani',sans-serif;background:var(--bg);min-height:100vh;color:var(--tx);}
+
+/* ─── SCANLINES & GRID BG ─── */
+.cyber-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+.scan{position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,245,255,.012) 2px,rgba(0,245,255,.012) 4px);}
+.grid{position:absolute;inset:0;
+  background-image:linear-gradient(rgba(0,245,255,.04) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(0,245,255,.04) 1px,transparent 1px);
+  background-size:42px 42px;}
+.flare1{position:absolute;width:600px;height:600px;border-radius:50%;
+  top:-150px;left:-120px;
+  background:radial-gradient(circle,rgba(0,245,255,.08) 0%,transparent 65%);
+  animation:fl1 18s ease-in-out infinite alternate;}
+.flare2{position:absolute;width:500px;height:500px;border-radius:50%;
+  bottom:-130px;right:-100px;
+  background:radial-gradient(circle,rgba(57,255,20,.06) 0%,transparent 65%);
+  animation:fl2 22s ease-in-out infinite alternate;}
+@keyframes fl1{0%{transform:translate(0,0) scale(1)}100%{transform:translate(60px,40px) scale(1.15)}}
+@keyframes fl2{0%{transform:translate(0,0) scale(1)}100%{transform:translate(-50px,-35px) scale(1.1)}}
+
+/* ─── LOADER ─── */
+#ldr{position:fixed;inset:0;background:var(--bg);z-index:1000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
+  transition:opacity .4s;}
+.ldr-logo{font-family:'Orbitron',monospace;font-size:2.2rem;font-weight:900;letter-spacing:.12em;
+  color:var(--cyan);text-shadow:0 0 18px var(--cyan),0 0 36px rgba(0,245,255,.4);
+  animation:flick 3s ease-in-out infinite;}
+@keyframes flick{0%,90%,100%{opacity:1}92%,96%{opacity:.6}}
+.ldr-sub{font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--grn);
+  letter-spacing:.25em;text-transform:uppercase;text-shadow:0 0 10px var(--grn);}
+.hex-loader{display:flex;gap:5px;align-items:center;}
+.hx{width:8px;height:8px;background:var(--cyan);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  animation:hxp 1.2s ease-in-out infinite;}
+.hx:nth-child(2){animation-delay:.2s;background:var(--grn);}
+.hx:nth-child(3){animation-delay:.4s;background:var(--pur);}
+@keyframes hxp{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.5);opacity:1}}
+
+/* ─── MAIN APP ─── */
+#app{position:relative;z-index:1;max-width:440px;margin:0 auto;padding:12px 14px 44px;display:none;}
+
+/* ─── CARD ─── */
+.card{background:rgba(0,10,20,.72);border:1px solid var(--bdr);border-radius:4px;
+  backdrop-filter:blur(14px);position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.6;}
+.p4{padding:15px;}
+
+/* ─── HEADER ─── */
+.hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;}
+.logo-wrap{display:flex;flex-direction:column;}
+.logo{font-family:'Orbitron',monospace;font-size:1.15rem;font-weight:900;letter-spacing:.1em;
+  color:var(--cyan);text-shadow:0 0 12px var(--cyan);}
+.logo-tag{font-family:'Share Tech Mono',monospace;font-size:.6rem;
+  color:var(--grn);letter-spacing:.18em;opacity:.8;}
+.relbtn{background:transparent;border:1px solid var(--bdr);border-radius:3px;padding:8px;
+  cursor:pointer;display:flex;color:var(--sub);transition:.18s;}
+.relbtn:active{transform:scale(.88);border-color:var(--cyan);}
+
+/* ─── BALANCE CARD ─── */
+.bal-card{margin-bottom:11px;padding:18px 16px 15px;
+  background:linear-gradient(135deg,rgba(0,245,255,.05),rgba(57,255,20,.03));
+  border:1px solid rgba(0,245,255,.18);border-radius:4px;position:relative;overflow:hidden;}
+.bal-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--grn),transparent);opacity:.5;}
+.corner{position:absolute;width:12px;height:12px;border-color:var(--cyan);border-style:solid;opacity:.8;}
+.c-tl{top:6px;left:6px;border-width:1px 0 0 1px;}
+.c-tr{top:6px;right:6px;border-width:1px 1px 0 0;}
+.c-bl{bottom:6px;left:6px;border-width:0 0 1px 1px;}
+.c-br{bottom:6px;right:6px;border-width:0 1px 1px 0;}
+.bal-lbl{font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--sub);
+  letter-spacing:.2em;text-transform:uppercase;margin-bottom:4px;}
+.bal-row{display:flex;align-items:baseline;gap:7px;}
+.bal-num{font-family:'Orbitron',monospace;font-size:2.5rem;font-weight:700;letter-spacing:-.02em;
+  color:var(--grn);text-shadow:0 0 20px var(--grn),0 0 40px rgba(57,255,20,.3);}
+.bal-mmk{font-family:'Share Tech Mono',monospace;font-size:.9rem;color:var(--grn);opacity:.75;}
+
+/* ─── STATS ─── */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:11px;}
+.stat{padding:11px 8px;text-align:center;background:rgba(0,245,255,.03);
+  border:1px solid rgba(0,245,255,.09);border-radius:3px;}
+.sn{font-family:'Orbitron',monospace;font-size:1.35rem;font-weight:700;line-height:1;}
+.sl{font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--sub);
+  letter-spacing:.15em;text-transform:uppercase;margin-top:3px;}
+
+/* ─── BUTTONS ─── */
+.btn{display:flex;align-items:center;justify-content:center;gap:7px;
+  font-family:'Rajdhani',sans-serif;font-weight:700;border:none;cursor:pointer;
+  padding:13px;width:100%;color:#fff;transition:all .16s;font-size:15px;
+  border-radius:3px;position:relative;overflow:hidden;letter-spacing:.04em;}
+.btn:active{transform:scale(.96);}
+.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.08),transparent);
+  pointer-events:none;}
+.btn-play{background:linear-gradient(135deg,rgba(0,245,255,.18),rgba(57,255,20,.12));
+  border:1px solid var(--cyan);color:var(--cyan);font-family:'Orbitron',monospace;
+  font-size:.9rem;letter-spacing:.1em;
+  box-shadow:0 0 18px rgba(0,245,255,.22),inset 0 0 20px rgba(0,245,255,.04);}
+.btn-play:active{box-shadow:0 0 28px rgba(0,245,255,.42);}
+.btn-grn{background:linear-gradient(135deg,rgba(57,255,20,.18),rgba(0,200,60,.1));
+  border:1px solid rgba(57,255,20,.4);color:var(--grn);
+  box-shadow:0 0 12px rgba(57,255,20,.18);}
+.btn-blu{background:linear-gradient(135deg,rgba(0,100,255,.2),rgba(0,60,200,.12));
+  border:1px solid rgba(0,150,255,.35);color:#5af;
+  box-shadow:0 0 12px rgba(0,150,255,.18);}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px;}
+.btn-gold{background:linear-gradient(135deg,rgba(255,215,0,.18),rgba(255,165,0,.1));
+  border:1px solid rgba(255,215,0,.4);color:var(--gold);}
+
+/* ─── PANEL ─── */
+.panel{max-height:0;overflow:hidden;opacity:0;
+  transition:max-height .44s cubic-bezier(.4,0,.2,1),opacity .32s,margin .3s;pointer-events:none;}
+.panel.open{max-height:960px;opacity:1;margin-top:10px;pointer-events:auto;}
+
+/* ─── INPUT ─── */
+.inp{width:100%;padding:11px 13px;background:rgba(0,245,255,.04);
+  border:1px solid var(--bdr);border-radius:3px;
+  color:var(--tx);font-family:'Rajdhani',sans-serif;font-size:14px;
+  outline:none;transition:.22s;letter-spacing:.02em;}
+.inp:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,245,255,.15),0 0 12px rgba(0,245,255,.12);}
+.inp::placeholder{color:rgba(100,180,220,.22);font-family:'Share Tech Mono',monospace;font-size:12px;}
+.fcol{display:flex;flex-direction:column;gap:8px;}
+
+/* ─── KPAY BOX ─── */
+.kbox{background:rgba(0,0,0,.3);border:1px solid rgba(255,215,0,.16);border-radius:3px;padding:12px;}
+.krow{display:flex;justify-content:space-between;align-items:center;
+  background:rgba(255,255,255,.03);border:1px solid rgba(0,245,255,.08);
+  border-radius:3px;padding:10px 12px;margin-bottom:7px;}
+.knum{font-family:'Share Tech Mono',monospace;font-size:1.05rem;font-weight:700;
+  letter-spacing:.06em;color:var(--gold);}
+.cpybtn{background:rgba(255,215,0,.12);color:var(--gold);border:1px solid rgba(255,215,0,.3);
+  padding:5px 12px;border-radius:3px;font-weight:700;font-size:12px;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;letter-spacing:.04em;transition:.15s;}
+.cpybtn:active{transform:scale(.9);background:rgba(255,215,0,.25);}
+.kinfo{font-family:'Share Tech Mono',monospace;font-size:.65rem;color:rgba(255,215,0,.55);
+  letter-spacing:.1em;margin-top:5px;text-transform:uppercase;}
+
+/* ─── PAY TABS ─── */
+.pay-tabs{display:flex;gap:6px;margin-bottom:11px;}
+.pay-tab{flex:1;padding:9px 0;border-radius:3px;
+  border:1px solid var(--bdr);background:rgba(0,245,255,.03);
+  color:rgba(200,230,255,.4);font-weight:700;font-size:13px;
+  cursor:pointer;font-family:'Rajdhani',sans-serif;transition:.2s;text-align:center;letter-spacing:.04em;}
+.pay-tab.active-kpay{border-color:var(--gold);color:var(--gold);
+  background:rgba(255,215,0,.07);box-shadow:0 0 8px rgba(255,215,0,.15);}
+.pay-tab.active-wave{border-color:#00c4a8;color:#00e5cc;background:rgba(0,196,168,.07);}
+.warnbox{background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.18);
+  border-radius:3px;padding:8px 11px;font-size:12px;color:rgba(255,215,0,.7);
+  font-family:'Share Tech Mono',monospace;letter-spacing:.04em;margin-top:8px;}
+
+/* ─── REFERRAL ─── */
+.refwrap{position:relative;}
+.refinp{padding-right:80px;font-size:13px;color:#00ccee;font-family:'Share Tech Mono',monospace;}
+.refsend{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  background:linear-gradient(135deg,rgba(0,245,255,.25),rgba(57,255,20,.15));
+  color:var(--cyan);border:1px solid rgba(0,245,255,.4);padding:6px 12px;
+  border-radius:3px;font-weight:700;font-size:12px;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;letter-spacing:.04em;}
+.refsend:active{transform:translateY(-50%) scale(.92);}
+
+/* ─── REF TABS ─── */
+.ref-tabs{display:flex;background:rgba(0,0,0,.25);border-radius:3px;padding:3px;gap:3px;margin-bottom:10px;}
+.rtab{flex:1;padding:7px;border-radius:2px;border:none;background:transparent;
+  color:var(--sub);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:.2s;}
+.rtab.on{background:rgba(0,245,255,.18);color:var(--cyan);}
+.ref-item{display:flex;justify-content:space-between;align-items:center;
+  padding:9px 0;border-bottom:1px solid rgba(0,245,255,.06);}
+.ref-item:last-child{border:none;}
+
+/* ─── RULES ─── */
+.rule-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px;}
+.ritem{background:rgba(0,245,255,.03);border:1px solid rgba(0,245,255,.07);
+  border-radius:3px;padding:12px 8px;text-align:center;transition:.22s;}
+.ritem:hover{background:rgba(0,245,255,.07);border-color:var(--cyan);}
+.rico{font-size:1.4rem;margin-bottom:5px;}
+.rlbl{font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--sub);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px;}
+.rval{font-size:.85rem;font-weight:700;font-family:'Orbitron',monospace;}
+
+/* ─── SECTION TITLE ─── */
+.stitle{font-family:'Orbitron',monospace;font-size:.8rem;font-weight:700;letter-spacing:.1em;
+  margin-bottom:11px;display:flex;align-items:center;gap:8px;color:var(--cyan);}
+.stitle::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--bdr),transparent);}
+
+/* ─── TOAST ─── */
+#toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-70px);
+  z-index:9999;transition:all .38s cubic-bezier(.68,-.55,.265,1.55);opacity:0;pointer-events:none;}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+.ti{padding:9px 18px;border-radius:3px;font-size:13px;font-weight:700;
+  backdrop-filter:blur(16px);display:flex;align-items:center;gap:7px;white-space:nowrap;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:'Rajdhani',sans-serif;letter-spacing:.04em;}
+.tok{background:rgba(0,20,10,.9);border:1px solid var(--grn);color:var(--grn);
+  box-shadow:0 0 16px rgba(57,255,20,.3);}
+.terr{background:rgba(20,0,5,.9);border:1px solid var(--red);color:var(--red);
+  box-shadow:0 0 16px rgba(255,45,85,.3);}
+
+/* ─── SPINNER ─── */
+.spn{width:14px;height:14px;border:2px solid rgba(0,245,255,.2);border-top-color:var(--cyan);
+  border-radius:50%;animation:spin .8s linear infinite;display:none;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── ADMIN BTN (hidden) ─── */
+.admin-corner{position:fixed;bottom:16px;right:16px;z-index:500;
+  background:rgba(0,0,0,.7);border:1px solid rgba(0,245,255,.2);border-radius:3px;
+  padding:6px 11px;font-family:'Share Tech Mono',monospace;font-size:.65rem;
+  color:rgba(0,245,255,.4);cursor:pointer;letter-spacing:.1em;transition:.2s;}
+.admin-corner:hover{color:var(--cyan);border-color:var(--cyan);
+  box-shadow:0 0 10px rgba(0,245,255,.2);}
+</style>
+</head>
+<body>
+<div class="cyber-bg">
+  <div class="scan"></div>
+  <div class="grid"></div>
+  <div class="flare1"></div>
+  <div class="flare2"></div>
+</div>
+
+<div id="ldr">
+  <div class="ldr-logo">TICTOE</div>
+  <div class="ldr-sub">[ BAMBAM ARENA // BOT-2 ]</div>
+  <div class="hex-loader"><div class="hx"></div><div class="hx"></div><div class="hx"></div></div>
+</div>
+
+<div id="toast"><div class="ti" id="ti"></div></div>
+
+<div id="app">
+  <!-- Header -->
+  <div class="hdr">
+    <div class="logo-wrap">
+      <div class="logo">⚡ TicToeTic</div>
+      <div class="logo-tag">// BamBam Arena v2.0</div>
+    </div>
+    <button class="relbtn" onclick="refreshBal()" title="Refresh">
+      <svg id="rico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6M21 12a9 9 0 01-15 6.7L3 16"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Balance Card -->
+  <div class="bal-card">
+    <div class="corner c-tl"></div><div class="corner c-tr"></div>
+    <div class="corner c-bl"></div><div class="corner c-br"></div>
+    <div class="bal-lbl">// CREDIT BALANCE</div>
+    <div class="bal-row">
+      <div class="bal-num" id="balNum">0</div>
+      <div class="bal-mmk">MMK</div>
+    </div>
+    <div style="font-size:11px;color:var(--sub);margin-top:6px;font-family:'Share Tech Mono',monospace;letter-spacing:.08em;">
+      <span id="uname" style="color:var(--cyan);">—</span>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="sn" style="color:#5af;" id="sG">0</div>
+      <div class="sl">Games</div>
+    </div>
+    <div class="stat">
+      <div class="sn" style="color:var(--grn);" id="sW">0</div>
+      <div class="sl">Wins</div>
+    </div>
+    <div class="stat">
+      <div class="sn" style="color:var(--red);" id="sL">0</div>
+      <div class="sl">Losses</div>
+    </div>
+  </div>
+
+  <!-- Play Button -->
+  <a href="/play.html" class="btn btn-play" style="text-decoration:none;margin-bottom:9px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+    ENTER BATTLE ARENA
+  </a>
+
+  <!-- Action Row -->
+  <div class="btn-row">
+    <button class="btn btn-grn" onclick="togglePanel('dep')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      DEPOSIT
+    </button>
+    <button class="btn btn-blu" onclick="togglePanel('wd')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      WITHDRAW
+    </button>
+  </div>
+  <button class="btn btn-gold" style="margin-bottom:9px;" onclick="togglePanel('rdm')">
+    🎟️ REDEEM CODE
+  </button>
+
+  <!-- DEPOSIT PANEL -->
+  <div class="panel card" id="dep">
+    <div class="p4">
+      <div class="stitle">💳 DEPOSIT CREDITS</div>
+      <div class="pay-tabs">
+        <button class="pay-tab active-kpay" id="dep-tab-kpay" onclick="switchDepMethod('kpay')">📱 KPay</button>
+        <button class="pay-tab" id="dep-tab-wave" onclick="switchDepMethod('wave')">🌊 Wave</button>
+      </div>
+      <div id="dep-kpay-info" class="kbox" style="margin-bottom:11px;">
+        <div style="font-size:11px;color:rgba(255,215,0,.65);font-family:'Share Tech Mono',monospace;letter-spacing:.12em;margin-bottom:9px;">▸ TRANSFER TO KPAY</div>
+        <div class="krow">
+          <div>
+            <div style="font-size:9px;font-family:'Share Tech Mono',monospace;color:var(--sub);text-transform:uppercase;margin-bottom:2px;">KPay No.</div>
+            <div class="knum" id="dep-kpay-number">09792310926</div>
+          </div>
+          <button class="cpybtn" id="dep-kpay-copy-num" onclick="copyTxt('09792310926')">COPY</button>
+        </div>
+        <div class="krow" style="margin-bottom:0;">
+          <div>
+            <div style="font-size:9px;font-family:'Share Tech Mono',monospace;color:var(--sub);text-transform:uppercase;margin-bottom:2px;">Account Name</div>
+            <div style="font-weight:700;font-family:'Rajdhani',sans-serif;font-size:15px;" id="dep-kpay-name">Admin</div>
+          </div>
+          <button class="cpybtn" id="dep-kpay-copy-name" onclick="copyTxt('Admin')">COPY</button>
+        </div>
+        <div class="warnbox">⚠ TRANSFER FIRST → THEN FILL FORM</div>
+      </div>
+      <div id="dep-wave-info" class="kbox" style="margin-bottom:11px;display:none;border-color:rgba(0,196,168,.16);">
+        <div style="font-size:11px;color:rgba(0,229,204,.65);font-family:'Share Tech Mono',monospace;letter-spacing:.12em;margin-bottom:9px;">▸ TRANSFER TO WAVE</div>
+        <div class="krow">
+          <div>
+            <div style="font-size:9px;font-family:'Share Tech Mono',monospace;color:var(--sub);text-transform:uppercase;margin-bottom:2px;">Wave No.</div>
+            <div class="knum" style="color:#00e5cc;" id="dep-wave-number">09792310926</div>
+          </div>
+          <button class="cpybtn" style="background:rgba(0,196,168,.12);color:#00e5cc;border-color:rgba(0,196,168,.3);" id="dep-wave-copy-num" onclick="copyTxt('09792310926')">COPY</button>
+        </div>
+        <div class="krow" style="margin-bottom:0;">
+          <div>
+            <div style="font-size:9px;font-family:'Share Tech Mono',monospace;color:var(--sub);text-transform:uppercase;margin-bottom:2px;">Account Name</div>
+            <div style="font-weight:700;font-family:'Rajdhani',sans-serif;font-size:15px;" id="dep-wave-name">Admin</div>
+          </div>
+          <button class="cpybtn" style="background:rgba(0,196,168,.12);color:#00e5cc;border-color:rgba(0,196,168,.3);" id="dep-wave-copy-name" onclick="copyTxt('Admin')">COPY</button>
+        </div>
+        <div class="warnbox" style="background:rgba(0,196,168,.06);border-color:rgba(0,196,168,.2);color:rgba(0,229,204,.7);">⚠ TRANSFER FIRST → THEN FILL FORM</div>
+      </div>
+      <div class="fcol">
+        <input class="inp" id="dN" placeholder="YOUR NAME (KPay / Wave)">
+        <input class="inp" id="dT" placeholder="TRANSACTION ID">
+        <input class="inp" id="dA" type="number" placeholder="AMOUNT (MIN 500 MMK)" min="500">
+        <button class="btn btn-grn" onclick="submitDep()">
+          <span id="dTx">⚡ CONFIRM DEPOSIT</span><div class="spn" id="dSp"></div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WITHDRAW PANEL -->
+  <div class="panel card" id="wd" style="margin-top:0;">
+    <div class="p4">
+      <div class="stitle">💸 WITHDRAW CREDITS</div>
+      <div style="background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.1);border-radius:3px;
+        padding:10px 12px;margin-bottom:11px;font-family:'Share Tech Mono',monospace;font-size:.7rem;
+        color:rgba(180,220,255,.55);letter-spacing:.06em;line-height:1.7;">
+        ▸ MIN WITHDRAW: <b style="color:var(--cyan);">2,500 MMK</b><br>
+        ▸ ADMIN VERIFIES WITHIN 24 HRS
+      </div>
+      <div class="pay-tabs">
+        <button class="pay-tab active-kpay" id="wd-tab-kpay" onclick="switchWdMethod('kpay')">📱 KPay</button>
+        <button class="pay-tab" id="wd-tab-wave" onclick="switchWdMethod('wave')">🌊 Wave</button>
+      </div>
+      <div class="fcol">
+        <input class="inp" id="wN" placeholder="RECIPIENT NAME">
+        <input class="inp" id="wP" placeholder="PHONE NUMBER (09xxxxxxx)">
+        <input class="inp" id="wA" type="number" placeholder="AMOUNT (MIN 2500)" min="2500">
+        <button class="btn btn-blu" onclick="submitWd()">
+          <span id="wTx">💸 REQUEST WITHDRAWAL</span><div class="spn" id="wSp"></div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REDEEM PANEL -->
+  <div class="panel card" id="rdm" style="margin-top:0;">
+    <div class="p4">
+      <div class="stitle">🎟️ REDEEM CODE</div>
+      <div class="fcol">
+        <input class="inp" id="rdmCode" placeholder="ENTER CODE" style="font-family:'Share Tech Mono',monospace;letter-spacing:.15em;text-transform:uppercase;"
+          oninput="this.value=this.value.toUpperCase()">
+        <button class="btn btn-gold" onclick="submitRedeem()">
+          <span id="rdmTx">🎁 REDEEM</span><div class="spn" id="rdmSp"></div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Referral -->
+  <div class="card p4" style="margin-top:9px;">
+    <div class="stitle">🔗 REFERRAL LINK</div>
+    <div class="refwrap" style="margin-bottom:9px;">
+      <input class="inp refinp" id="refL" readonly value="Loading...">
+      <button class="refsend" onclick="sendRef()">SHARE</button>
+    </div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--sub);
+      letter-spacing:.08em;line-height:1.7;">
+      ▸ EARN <span style="color:var(--gold);">100 MMK</span> PER REFERRAL DEPOSIT
+    </div>
+  </div>
+
+  <!-- Referral Members -->
+  <div class="card p4" style="margin-top:9px;">
+    <div class="ref-tabs">
+      <button class="rtab on" id="rt-list" onclick="switchRefTab('list')">MEMBERS</button>
+      <button class="rtab" id="rt-rules" onclick="switchRefTab('rules')">GAME RULES</button>
+    </div>
+    <div id="ref-list-content">
+      <div id="refList" style="max-height:200px;overflow-y:auto;">
+        <div style="text-align:center;padding:18px;font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--sub);">LOADING...</div>
+      </div>
+    </div>
+    <div id="ref-rules-content" style="display:none;">
+      <div class="rule-grid">
+        <div class="ritem"><div class="rico">⚡</div><div class="rlbl">Entry Fee</div><div class="rval" style="color:var(--cyan);">500 MMK</div></div>
+        <div class="ritem"><div class="rico">🏆</div><div class="rlbl">Win Prize</div><div class="rval" style="color:var(--grn);">800 MMK</div></div>
+        <div class="ritem"><div class="rico">🤝</div><div class="rlbl">Draw</div><div class="rval" style="color:#5af;">250 MMK</div></div>
+        <div class="ritem"><div class="rico">⏱</div><div class="rlbl">Turn Time</div><div class="rval" style="color:var(--gold);">10 SEC</div></div>
+      </div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--sub);
+        line-height:1.9;letter-spacing:.06em;padding:10px;background:rgba(0,245,255,.03);
+        border:1px solid rgba(0,245,255,.07);border-radius:3px;">
+        ▸ 5×5 BOARD // GET 4-IN-A-ROW TO WIN<br>
+        ▸ MIN DEPOSIT: <span style="color:var(--gold)">500 MMK</span><br>
+        ▸ MIN WITHDRAW: <span style="color:var(--gold)">2,500 MMK</span><br>
+        ▸ MATCHES SHARED ACROSS BOT-1 & BOT-2
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- Admin shortcut -->
+<div class="admin-corner" onclick="window.location.href='/admin.html'">[ ADMIN ]</div>
+
+<script>
+const API = (typeof process !== 'undefined' && process.env?.REACT_APP_BACKEND_URL)
+  || 'https://tictoebackend2.onrender.com';
+const BOT = 'BamBamBoomm_bot';
+const BOT_SOURCE = 'Bot2';
+
+const tg = window.Telegram?.WebApp;
+if(tg){tg.expand();tg.ready();}
+let user=null, _payInfo=null;
+let depMethod='kpay', wdMethod='kpay';
+let refLoaded=false;
+
+function esc(s){return(s||'').toString().replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+
+/* ── TOAST ── */
+let toastT;
+function toast(msg,ok=true,dur=3200){
+  const el=document.getElementById('toast'),ti=document.getElementById('ti');
+  ti.textContent=(ok?'✓ ':'✗ ')+msg;ti.className='ti '+(ok?'tok':'terr');
+  el.classList.add('show');clearTimeout(toastT);
+  toastT=setTimeout(()=>el.classList.remove('show'),dur);
+}
+
+/* ── ANIMATE NUMBER ── */
+function animN(id,end,dur=750){
+  const el=document.getElementById(id);
+  const start=parseInt(el.textContent.replace(/,/g,''))||0;
+  if(start===end){el.textContent=end.toLocaleString();return;}
+  let t0=null;
+  const s=ts=>{if(!t0)t0=ts;const p=Math.min((ts-t0)/dur,1);
+    el.textContent=Math.floor(p*(end-start)+start).toLocaleString();
+    if(p<1)requestAnimationFrame(s);else el.textContent=end.toLocaleString();};
+  requestAnimationFrame(s);
+}
+
+function updateUI(){
+  if(!user)return;
+  document.getElementById('uname').textContent=(user.firstName||user.username||'USER').toUpperCase();
+  animN('balNum',user.balance||0);
+  document.getElementById('sG').textContent=user.totalGames||0;
+  document.getElementById('sW').textContent=user.wins||0;
+  document.getElementById('sL').textContent=user.losses||0;
+  document.getElementById('refL').value=`https://t.me/${BOT}?start=${user.referralCode||''}`;
+}
+
+/* ── INIT ── */
+async function init(){
+  try{
+    const initData=tg?.initData||'';
+    const savedId=sessionStorage.getItem('uid');
+    let body;
+    if(initData){ body={initData, botSource: BOT_SOURCE}; }
+    else if(savedId){
+      const r2=await fetch(`${API}/api/user/${savedId}`);
+      const d2=await r2.json();
+      if(d2.balance!==undefined){
+        user={telegramId:parseInt(savedId),firstName:d2.firstName,username:d2.username,...d2};
+        updateUI();hideLdr();loadPaymentInfo();loadReferrals();return;
+      }
+      body={telegramId:parseInt(savedId), botSource: BOT_SOURCE};
+    }else{
+      body={telegramId:12345, botSource: BOT_SOURCE};
+    }
+    const r=await fetch(`${API}/api/auth`,{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok)throw new Error(r.status);
+    user=await r.json();
+    if(user.telegramId)sessionStorage.setItem('uid',user.telegramId);
+    updateUI();hideLdr();
+    loadPaymentInfo();loadReferrals();
+  }catch(e){
+    console.error('init:',e);hideLdr();
+    toast('Server connection failed',false,5000);
+  }
+}
+
+function hideLdr(){
+  const l=document.getElementById('ldr');
+  l.style.opacity='0';
+  setTimeout(()=>{l.style.display='none';document.getElementById('app').style.display='block';},350);
+}
+
+/* ── REFRESH BALANCE ── */
+async function refreshBal(){
+  if(!user?.telegramId)return;
+  const ico=document.getElementById('rico');
+  ico.style.animation='spin .7s linear infinite';
+  try{
+    const r=await fetch(`${API}/api/user/${user.telegramId}`);
+    const d=await r.json();
+    if(d.balance!==undefined){Object.assign(user,d);animN('balNum',d.balance);
+      document.getElementById('sG').textContent=d.totalGames||0;
+      document.getElementById('sW').textContent=d.wins||0;
+      document.getElementById('sL').textContent=d.losses||0;
+      toast('Balance synced',true,2000);}
+  }catch(e){toast('Connection error',false);}
+  setTimeout(()=>ico.style.animation='',800);
+}
+
+/* ── PAYMENT INFO ── */
+async function loadPaymentInfo(){
+  if(!user?.telegramId)return;
+  try{
+    const r=await fetch(`${API}/api/payment-info/${user.telegramId}`);
+    if(!r.ok)return;
+    _payInfo=await r.json();
+    applyPaymentInfo();
+  }catch(e){}
+}
+
+function applyPaymentInfo(){
+  if(!_payInfo)return;
+  const{kpayNumber,kpayName,hasWave,waveNumber,waveName}=_payInfo;
+  const kn=document.getElementById('dep-kpay-number');
+  const kna=document.getElementById('dep-kpay-name');
+  if(kn)kn.textContent=kpayNumber;
+  if(kna)kna.textContent=kpayName;
+  const knc=document.getElementById('dep-kpay-copy-num');
+  const knca=document.getElementById('dep-kpay-copy-name');
+  if(knc)knc.onclick=()=>copyTxt(kpayNumber);
+  if(knca)knca.onclick=()=>copyTxt(kpayName);
+  if(waveNumber){
+    const wn=document.getElementById('dep-wave-number');
+    const wna=document.getElementById('dep-wave-name');
+    if(wn)wn.textContent=waveNumber;if(wna)wna.textContent=waveName||'Admin';
+  }
+  const wt=document.getElementById('dep-tab-wave');
+  const wi=document.getElementById('dep-wave-info');
+  if(!hasWave){
+    if(wt)wt.style.display='none';if(wi)wi.style.display='none';
+    if(depMethod==='wave'){depMethod='kpay';document.getElementById('dep-kpay-info').style.display='';
+      const kt=document.getElementById('dep-tab-kpay');if(kt)kt.className='pay-tab active-kpay';}
+  }else{if(wt)wt.style.display='';}
+}
+
+/* ── PANEL TOGGLE ── */
+function togglePanel(id){
+  ['dep','wd','rdm'].forEach(p=>{
+    const e=document.getElementById(p);
+    if(p===id)e.classList.toggle('open');else e.classList.remove('open');
+  });
+  setTimeout(()=>document.getElementById(id).scrollIntoView({behavior:'smooth',block:'nearest'}),130);
+  if(id==='dep')loadPaymentInfo();
+}
+
+/* ── COPY ── */
+function copyTxt(t){
+  navigator.clipboard?.writeText(t);
+  if(tg?.HapticFeedback)tg.HapticFeedback.impactOccurred('light');
+  toast('Copied!',true,1800);
+}
+
+/* ── PAY METHOD SWITCHES ── */
+function switchDepMethod(m){
+  if(m==='wave'&&_payInfo&&!_payInfo.hasWave)return;
+  depMethod=m;
+  document.getElementById('dep-kpay-info').style.display=m==='kpay'?'':'none';
+  document.getElementById('dep-wave-info').style.display=m==='wave'?'':'none';
+  document.getElementById('dep-tab-kpay').className='pay-tab'+(m==='kpay'?' active-kpay':'');
+  document.getElementById('dep-tab-wave').className='pay-tab'+(m==='wave'?' active-wave':'');
+  document.getElementById('dN').placeholder=m==='wave'?'YOUR WAVE NAME':'YOUR KPAY NAME';
+}
+function switchWdMethod(m){
+  wdMethod=m;
+  document.getElementById('wd-tab-kpay').className='pay-tab'+(m==='kpay'?' active-kpay':'');
+  document.getElementById('wd-tab-wave').className='pay-tab'+(m==='wave'?' active-wave':'');
+  document.getElementById('wN').placeholder=m==='wave'?'WAVE RECIPIENT NAME':'KPAY RECIPIENT NAME';
+  document.getElementById('wP').placeholder=m==='wave'?'WAVE NO. (09xxxxxxx)':'KPAY NO. (09xxxxxxx)';
+}
+
+function setLd(p,on){
+  document.getElementById(p+'Tx').style.display=on?'none':'inline';
+  document.getElementById(p+'Sp').style.display=on?'inline-block':'none';
+}
+
+/* ── DEPOSIT ── */
+async function submitDep(){
+  const name=document.getElementById('dN').value.trim();
+  const txn=document.getElementById('dT').value.trim();
+  const amt=parseInt(document.getElementById('dA').value);
+  if(!name)return toast('Enter your name',false);
+  if(!txn)return toast('Enter Transaction ID',false);
+  if(!amt||amt<500)return toast('Min deposit 500 MMK',false);
+  if(!user)return toast('Please login',false);
+  setLd('d',true);
+  try{
+    const r=await fetch(`${API}/api/deposit`,{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({telegramId:user.telegramId,kpayName:name,transactionId:txn,amount:amt,paymentMethod:depMethod,botSource:BOT_SOURCE})});
+    const res=await r.json();
+    if(res.success){
+      toast('Deposit request sent! Admin verifying...',true,4000);
+      document.getElementById('dN').value='';document.getElementById('dT').value='';
+      document.getElementById('dA').value='';togglePanel('dep');
+    }else toast(res.error||'Error',false,4500);
+  }catch(e){toast('Server connection failed',false);}
+  setLd('d',false);
+}
+
+/* ── WITHDRAW ── */
+async function submitWd(){
+  const name=document.getElementById('wN').value.trim();
+  const num=document.getElementById('wP').value.trim();
+  const rawAmt=document.getElementById('wA').value;
+  const amt=Number(rawAmt.replace(/,/g,''));
+  if(!name)return toast('Enter recipient name',false);
+  if(!num)return toast('Enter phone number',false);
+  if(isNaN(amt)||amt<2500)return toast('Min withdraw 2,500 MMK',false);
+  if(!user)return toast('Please login',false);
+  try{
+    const fr=await fetch(`${API}/api/user/${user.telegramId}`);
+    const fd=await fr.json();
+    if(fd.balance!==undefined){user.balance=Number(fd.balance);animN('balNum',user.balance);}
+  }catch(e){}
+  if(amt>Number(user.balance)){
+    return toast(`Insufficient balance (${Number(user.balance).toLocaleString()} MMK)`,false,4500);
+  }
+  setLd('w',true);
+  try{
+    const r=await fetch(`${API}/api/withdraw`,{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({telegramId:user.telegramId,kpayName:name,kpayNumber:num,amount:amt,paymentMethod:wdMethod,botSource:BOT_SOURCE})});
+    const res=await r.json();
+    if(res.success){
+      user.balance=Number(res.newBalance);animN('balNum',user.balance);
+      toast('Withdrawal request sent!',true,4000);
+      document.getElementById('wN').value='';document.getElementById('wP').value='';
+      document.getElementById('wA').value='';togglePanel('wd');
+    }else toast(res.error||'Error',false,4500);
+  }catch(e){toast('Server connection failed',false);}
+  setLd('w',false);
+}
+
+/* ── REDEEM ── */
+async function submitRedeem(){
+  const code=document.getElementById('rdmCode').value.trim().toUpperCase();
+  if(!code)return toast('Enter code',false);
+  if(!user)return toast('Please login',false);
+  document.getElementById('rdmTx').style.display='none';
+  document.getElementById('rdmSp').style.display='inline-block';
+  try{
+    const r=await fetch(`${API}/api/redeem`,{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({telegramId:user.telegramId,code})});
+    const res=await r.json();
+    if(res.success){
+      user.balance=Number(res.newBalance);animN('balNum',user.balance);
+      toast(`🎉 +${res.amount.toLocaleString()} MMK unlocked!`,true,5000);
+      document.getElementById('rdmCode').value='';togglePanel('rdm');
+    }else toast(res.error||'Invalid code',false,4500);
+  }catch(e){toast('Server connection failed',false);}
+  document.getElementById('rdmTx').style.display='inline';
+  document.getElementById('rdmSp').style.display='none';
+}
+
+/* ── REFERRAL ── */
+function sendRef(){
+  const l=document.getElementById('refL').value;
+  if(!l||l==='Loading...')return;
+  const u=`https://t.me/share/url?url=${encodeURIComponent(l)}&text=${encodeURIComponent('⚡ TicToeTic BamBam Arena — Win real MMK playing Tic-Tac-Toe!\n🎮 Play vs real players\n💰 Fast withdrawals\n▸ Join now:')}`;
+  if(tg?.openTelegramLink)tg.openTelegramLink(u);
+  else copyTxt(l);
+}
+
+function switchRefTab(t){
+  document.getElementById('rt-list').classList.toggle('on',t==='list');
+  document.getElementById('rt-rules').classList.toggle('on',t==='rules');
+  document.getElementById('ref-list-content').style.display=t==='list'?'block':'none';
+  document.getElementById('ref-rules-content').style.display=t==='rules'?'block':'none';
+  if(t==='list'&&!refLoaded)loadReferrals();
+}
+
+async function loadReferrals(){
+  if(!user?.telegramId)return;
+  const el=document.getElementById('refList');
+  el.innerHTML='<div style="text-align:center;padding:16px;font-family:\'Share Tech Mono\',monospace;font-size:.7rem;color:var(--sub);">LOADING...</div>';
+  try{
+    const r=await fetch(`${API}/api/referrals/${user.telegramId}`);
+    const d=await r.json();
+    refLoaded=true;
+    if(!d.referrals?.length){
+      el.innerHTML='<div style="text-align:center;padding:16px;font-family:\'Share Tech Mono\',monospace;font-size:.7rem;color:var(--sub);">NO REFERRALS YET</div>';return;
+    }
+    el.innerHTML=d.referrals.map(r=>`
+      <div class="ref-item">
+        <div>
+          <div style="font-weight:700;font-size:13px;">${esc(r.name)}${r.username?` <span style="color:var(--sub);font-size:11px;">@${esc(r.username)}</span>`:''}</div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--sub);">${new Date(r.joinedAt).toLocaleDateString()}</div>
+        </div>
+        <div style="font-weight:700;font-size:12px;font-family:'Orbitron',monospace;color:var(--grn);">${(r.balance||0).toLocaleString()}</div>
+      </div>`).join('');
+  }catch(e){
+    refLoaded=false;
+    el.innerHTML='<div style="color:var(--red);text-align:center;padding:14px;font-size:12px;">Load failed — retry</div>';
+  }
+}
+
+/* ── AUTO REFRESH ── */
+setInterval(async()=>{
+  if(!user?.telegramId||document.visibilityState!=='visible')return;
+  try{
+    const r=await fetch(`${API}/api/user/${user.telegramId}`);
+    const d=await r.json();
+    if(d.balance!==undefined&&Number(d.balance)!==Number(user.balance)){
+      animN('balNum',Number(d.balance));user.balance=Number(d.balance);
+    }
+  }catch(e){}
+},60000);
+
+window.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
