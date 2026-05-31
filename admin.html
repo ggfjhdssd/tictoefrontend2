@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>⚡ BamBam Partner Panel</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -168,6 +169,7 @@ textarea.inp{resize:vertical;min-height:68px;}
     <button class="tab" onclick="showTab('wd')">💸 WITHDRAW</button>
     <button class="tab" onclick="showTab('users')">👥 USERS</button>
     <button class="tab" onclick="showTab('msg')">📨 MSG</button>
+    <button class="tab" onclick="showTab('analytics')">📈 ANALYTICS</button>
   </div>
 
   <!-- DASH TAB -->
@@ -219,6 +221,22 @@ textarea.inp{resize:vertical;min-height:68px;}
       <button class="btn btn-sm btn-gh" id="wf-rejected" onclick="loadWd('rejected')">✗ REJECTED</button>
     </div>
     <div id="wdList"></div>
+  </div>
+
+  <!-- ANALYTICS TAB -->
+  <div id="tab-analytics" style="display:none;">
+    <div class="stitle">📈 PERFORMANCE ANALYTICS</div>
+    <div class="card p4" style="margin-bottom:10px;">
+      <div class="rlbl">DAILY REVENUE (7 DAYS)</div>
+      <canvas id="revChart" style="width:100%;height:200px;"></canvas>
+    </div>
+    <div class="card p4">
+      <div class="rlbl">PEAK HOURS (GAME ACTIVITY)</div>
+      <canvas id="peakChart" style="width:100%;height:200px;"></canvas>
+    </div>
+    <div style="margin-top:10px;">
+      <button class="btn btn-cyan btn-full" onclick="loadAnalytics()">↻ REFRESH ANALYTICS</button>
+    </div>
   </div>
 
   <!-- USERS TAB -->
@@ -363,14 +381,75 @@ function logout(){
 }
 
 /* ── TABS ── */
-const TABS=['dash','dep','wd','users','msg'];
+const TABS=['dash','dep','wd','users','msg','analytics'];
+let revChart, peakChart;
 function showTab(name){
-  TABS.forEach(t=>{document.getElementById('tab-'+t).style.display=t===name?'block':'none';});
+  TABS.forEach(t=>{
+    const el = document.getElementById('tab-'+t);
+    if(el) el.style.display=t===name?'block':'none';
+  });
   document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('on',TABS[i]===name));
   if(name==='dep')loadDep('pending');
   if(name==='wd')loadWd('pending');
   if(name==='users')loadUsers(1);
   if(name==='dash')loadDash();
+  if(name==='analytics')loadAnalytics();
+}
+
+async function loadAnalytics() {
+  try {
+    const data = await api('/api/admin/analytics?botSource=' + BOT_SOURCE);
+    renderRevChart(data.deposits, data.withdrawals);
+    renderPeakChart(data.games);
+  } catch (e) {
+    toast('Analytics error: ' + e.message, false);
+  }
+}
+
+function renderRevChart(deps, wds) {
+  const ctx = document.getElementById('revChart').getContext('2d');
+  const labels = [...new Set([...deps.map(d => d._id), ...wds.map(w => w._id)])].sort();
+  const depData = labels.map(l => deps.find(d => d._id === l)?.total || 0);
+  const wdData = labels.map(l => wds.find(w => w._id === l)?.total || 0);
+  const revData = depData.map((d, i) => d - wdData[i]);
+
+  if (revChart) revChart.destroy();
+  revChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Revenue', data: revData, borderColor: '#00f5ff', backgroundColor: 'rgba(0, 245, 255, 0.1)', fill: true, tension: 0.4 },
+        { label: 'Deposits', data: depData, borderColor: '#39ff14', borderDash: [5, 5], fill: false },
+        { label: 'Withdraws', data: wdData, borderColor: '#ff2d55', borderDash: [5, 5], fill: false }
+      ]
+    },
+    options: { 
+      responsive: true, 
+      scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#cce8ff' } }, x: { grid: { display: false }, ticks: { color: '#cce8ff' } } },
+      plugins: { legend: { labels: { color: '#cce8ff', font: { family: 'Rajdhani' } } } }
+    }
+  });
+}
+
+function renderPeakChart(games) {
+  const ctx = document.getElementById('peakChart').getContext('2d');
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const data = hours.map(h => games.find(g => g._id.hour === h)?.count || 0);
+
+  if (peakChart) peakChart.destroy();
+  peakChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: hours.map(h => h + ':00'),
+      datasets: [{ label: 'Games Played', data: data, backgroundColor: 'rgba(191, 0, 255, 0.5)', borderColor: '#bf00ff', borderWidth: 1 }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#cce8ff' } }, x: { grid: { display: false }, ticks: { color: '#cce8ff' } } },
+      plugins: { legend: { display: false } }
+    }
+  });
 }
 
 /* ── DASHBOARD ── */
