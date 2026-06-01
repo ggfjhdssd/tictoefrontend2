@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>⚡ BamBam Partner Panel</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -169,7 +169,8 @@ textarea.inp{resize:vertical;min-height:68px;}
     <button class="tab" onclick="showTab('wd')">💸 WITHDRAW</button>
     <button class="tab" onclick="showTab('users')">👥 USERS</button>
     <button class="tab" onclick="showTab('msg')">📨 MSG</button>
-    <button class="tab" onclick="showTab('analytics')">📈 ANALYTICS</button>
+    <button class="tab" onclick="showTab('analytics')">📈 CHART</button>
+    <button class="tab" onclick="showTab('agents')">🤝 AGENTS</button>
   </div>
 
   <!-- DASH TAB -->
@@ -223,22 +224,6 @@ textarea.inp{resize:vertical;min-height:68px;}
     <div id="wdList"></div>
   </div>
 
-  <!-- ANALYTICS TAB -->
-  <div id="tab-analytics" style="display:none;">
-    <div class="stitle">📈 PERFORMANCE ANALYTICS</div>
-    <div class="card p4" style="margin-bottom:10px;">
-      <div class="rlbl">DAILY REVENUE (7 DAYS)</div>
-      <canvas id="revChart" style="width:100%;height:200px;"></canvas>
-    </div>
-    <div class="card p4">
-      <div class="rlbl">PEAK HOURS (GAME ACTIVITY)</div>
-      <canvas id="peakChart" style="width:100%;height:200px;"></canvas>
-    </div>
-    <div style="margin-top:10px;">
-      <button class="btn btn-cyan btn-full" onclick="loadAnalytics()">↻ REFRESH ANALYTICS</button>
-    </div>
-  </div>
-
   <!-- USERS TAB -->
   <div id="tab-users" style="display:none;">
     <div class="stitle">👥 BOT-2 USERS</div>
@@ -275,6 +260,44 @@ textarea.inp{resize:vertical;min-height:68px;}
     </div>
   </div>
 </div>
+
+  <!-- ANALYTICS TAB -->
+  <div id="tab-analytics" style="display:none;">
+    <div class="stitle">📈 ANALYTICS</div>
+    <div style="margin-bottom:9px;">
+      <button class="btn btn-sm btn-cyan btn-full" onclick="loadAnalytics()">↻ REFRESH CHARTS</button>
+    </div>
+    <!-- Revenue Chart -->
+    <div class="card p4" style="margin-bottom:10px;">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--gold);letter-spacing:.1em;margin-bottom:10px;">▸ DAILY REVENUE (30 DAYS)</div>
+      <div id="chartRevWrap" style="overflow-x:auto;">
+        <canvas id="chartRev" height="160" style="min-width:320px;width:100%;"></canvas>
+      </div>
+    </div>
+    <!-- New Users Chart -->
+    <div class="card p4" style="margin-bottom:10px;">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--cyan);letter-spacing:.1em;margin-bottom:10px;">▸ NEW USERS PER DAY (30 DAYS)</div>
+      <div style="overflow-x:auto;">
+        <canvas id="chartUsers" height="140" style="min-width:320px;width:100%;"></canvas>
+      </div>
+    </div>
+    <!-- Peak Hours Chart -->
+    <div class="card p4">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--grn);letter-spacing:.1em;margin-bottom:10px;">▸ PEAK PLAY HOURS (LAST 7 DAYS)</div>
+      <div style="overflow-x:auto;">
+        <canvas id="chartHours" height="140" style="min-width:320px;width:100%;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- AGENTS TAB -->
+  <div id="tab-agents" style="display:none;">
+    <div class="stitle">🤝 AGENT REFERRALS</div>
+    <div style="margin-bottom:9px;">
+      <button class="btn btn-sm btn-cyan btn-full" onclick="loadAgents()">↻ REFRESH</button>
+    </div>
+    <div id="agentList"></div>
+  </div>
 
 <script>
 const API = (typeof process !== 'undefined' && process.env?.REACT_APP_BACKEND_URL)
@@ -381,75 +404,16 @@ function logout(){
 }
 
 /* ── TABS ── */
-const TABS=['dash','dep','wd','users','msg','analytics'];
-let revChart, peakChart;
+const TABS=['dash','dep','wd','users','msg','analytics','agents'];
 function showTab(name){
-  TABS.forEach(t=>{
-    const el = document.getElementById('tab-'+t);
-    if(el) el.style.display=t===name?'block':'none';
-  });
+  TABS.forEach(t=>{document.getElementById('tab-'+t).style.display=t===name?'block':'none';});
   document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('on',TABS[i]===name));
   if(name==='dep')loadDep('pending');
   if(name==='wd')loadWd('pending');
   if(name==='users')loadUsers(1);
   if(name==='dash')loadDash();
   if(name==='analytics')loadAnalytics();
-}
-
-async function loadAnalytics() {
-  try {
-    const data = await api('/api/admin/analytics?botSource=' + BOT_SOURCE);
-    renderRevChart(data.deposits, data.withdrawals);
-    renderPeakChart(data.games);
-  } catch (e) {
-    toast('Analytics error: ' + e.message, false);
-  }
-}
-
-function renderRevChart(deps, wds) {
-  const ctx = document.getElementById('revChart').getContext('2d');
-  const labels = [...new Set([...deps.map(d => d._id), ...wds.map(w => w._id)])].sort();
-  const depData = labels.map(l => deps.find(d => d._id === l)?.total || 0);
-  const wdData = labels.map(l => wds.find(w => w._id === l)?.total || 0);
-  const revData = depData.map((d, i) => d - wdData[i]);
-
-  if (revChart) revChart.destroy();
-  revChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Revenue', data: revData, borderColor: '#00f5ff', backgroundColor: 'rgba(0, 245, 255, 0.1)', fill: true, tension: 0.4 },
-        { label: 'Deposits', data: depData, borderColor: '#39ff14', borderDash: [5, 5], fill: false },
-        { label: 'Withdraws', data: wdData, borderColor: '#ff2d55', borderDash: [5, 5], fill: false }
-      ]
-    },
-    options: { 
-      responsive: true, 
-      scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#cce8ff' } }, x: { grid: { display: false }, ticks: { color: '#cce8ff' } } },
-      plugins: { legend: { labels: { color: '#cce8ff', font: { family: 'Rajdhani' } } } }
-    }
-  });
-}
-
-function renderPeakChart(games) {
-  const ctx = document.getElementById('peakChart').getContext('2d');
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const data = hours.map(h => games.find(g => g._id.hour === h)?.count || 0);
-
-  if (peakChart) peakChart.destroy();
-  peakChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: hours.map(h => h + ':00'),
-      datasets: [{ label: 'Games Played', data: data, backgroundColor: 'rgba(191, 0, 255, 0.5)', borderColor: '#bf00ff', borderWidth: 1 }]
-    },
-    options: {
-      responsive: true,
-      scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#cce8ff' } }, x: { grid: { display: false }, ticks: { color: '#cce8ff' } } },
-      plugins: { legend: { display: false } }
-    }
-  });
+  if(name==='agents')loadAgents();
 }
 
 /* ── DASHBOARD ── */
@@ -712,6 +676,102 @@ async function sendBC(){
     toast('Broadcast started!',true);document.getElementById('bcTxt').value='';
   }catch(e){toast('Error: '+e.message,false);}
   setLd('bc',false);
+}
+
+/* ── ANALYTICS ── */
+let chartRev=null,chartUsers=null,chartHours=null;
+
+function mkChart(id,type,labels,datasets,opts={}){
+  const ctx=document.getElementById(id);if(!ctx)return null;
+  const existing=Chart.getChart(id);if(existing)existing.destroy();
+  return new Chart(ctx,{type,data:{labels,datasets},options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:datasets.length>1,labels:{color:'rgba(180,230,255,.6)',font:{size:10}}},tooltip:{callbacks:{label:ctx=>{const v=ctx.raw;return v>=1000?v.toLocaleString()+' MMK':v;}}}},
+    scales:{x:{ticks:{color:'rgba(180,230,255,.45)',font:{size:9},maxRotation:45},grid:{color:'rgba(0,245,255,.06)'}},
+      y:{ticks:{color:'rgba(180,230,255,.45)',font:{size:9},callback:v=>v>=1000?(v/1000).toFixed(0)+'k':v},grid:{color:'rgba(0,245,255,.06)'}}},
+    ...opts
+  }});
+}
+
+async function loadAnalytics(){
+  const el=document.getElementById('chartRevWrap');
+  el.style.opacity='0.5';
+  try{
+    const d=await api('/api/admin/analytics?botSource='+BOT_SOURCE);
+    el.style.opacity='1';
+
+    // Revenue chart
+    const depMap={};d.depDaily.forEach(x=>{depMap[x._id]=x.total;});
+    const wdMap={};d.wdDaily.forEach(x=>{wdMap[x._id]=x.total;});
+    // Last 30 days labels
+    const days30=[];for(let i=29;i>=0;i--){const dt=new Date(Date.now()-i*86400000);days30.push(dt.toISOString().slice(5,10));}
+    mkChart('chartRev','bar',days30,[
+      {label:'Deposit',data:days30.map(d=>depMap[new Date().getFullYear()+'-'+d]||depMap[d]||0),backgroundColor:'rgba(57,255,20,.45)',borderColor:'rgba(57,255,20,.8)',borderWidth:1},
+      {label:'Withdraw',data:days30.map(d=>wdMap[new Date().getFullYear()+'-'+d]||wdMap[d]||0),backgroundColor:'rgba(255,45,85,.35)',borderColor:'rgba(255,45,85,.7)',borderWidth:1}
+    ]);
+
+    // New users chart
+    const uMap={};d.newUsersDaily.forEach(x=>{uMap[x._id]=x.count;});
+    mkChart('chartUsers','line',days30,[
+      {label:'New Users',data:days30.map(dd=>{const full=new Date().getFullYear()+'-'+dd;return uMap[full]||0;}),borderColor:'#00f5ff',backgroundColor:'rgba(0,245,255,.1)',tension:.35,fill:true,pointRadius:2}
+    ]);
+
+    // Hourly chart
+    const hMap={};d.gameHourly.forEach(x=>{hMap[x._id]=x.count;});
+    const hours=Array.from({length:24},(_,i)=>i+'h');
+    mkChart('chartHours','bar',hours,[
+      {label:'Games',data:hours.map((_,i)=>hMap[i]||0),backgroundColor:hours.map((_,i)=>{const v=hMap[i]||0;const max=Math.max(...Object.values(hMap),1);const ratio=v/max;return `rgba(191,0,255,${0.2+ratio*0.7})`;}),borderRadius:2}
+    ]);
+  }catch(e){el.style.opacity='1';toast('Analytics error: '+e.message,false);}
+}
+
+/* ── AGENTS ── */
+async function loadAgents(){
+  const el=document.getElementById('agentList');
+  el.innerHTML='<div style="text-align:center;padding:20px;font-family:\'Share Tech Mono\',monospace;font-size:.68rem;color:var(--sub);letter-spacing:.1em;">LOADING...</div>';
+  try{
+    const data=await api('/api/admin/agent-referrals');
+    if(!data.length){el.innerHTML='<div style="text-align:center;padding:20px;font-family:\'Share Tech Mono\',monospace;font-size:.68rem;color:var(--sub);">NO AGENTS</div>';return;}
+    el.innerHTML=data.map((a,i)=>`
+      <div class="card p4" style="margin-bottom:9px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+          <div>
+            <div style="font-weight:700;font-size:13px;">🤝 ${esc(a.agentName)}</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--sub);">@${esc(a.agentUsername||'-')} · ID: ${a.agentId}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-family:'Orbitron',monospace;font-weight:700;color:var(--grn);font-size:12px;">${a.totalReferrals} refs</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--gold);">${(a.totalDeposited||0).toLocaleString()} MMK</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+          <div style="background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.1);border-radius:3px;padding:8px;text-align:center;">
+            <div style="font-family:'Orbitron',monospace;font-weight:700;color:var(--cyan);font-size:1rem;">${a.totalReferrals}</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--sub);">REFERRALS</div>
+          </div>
+          <div style="background:rgba(57,255,20,.05);border:1px solid rgba(57,255,20,.1);border-radius:3px;padding:8px;text-align:center;">
+            <div style="font-family:'Orbitron',monospace;font-weight:700;color:var(--grn);font-size:.9rem;">${(a.totalDeposited/1000).toFixed(0)}K</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--sub);">DEPOSITED MMK</div>
+          </div>
+        </div>
+        ${a.referrals.length?`
+        <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--sub);letter-spacing:.08em;margin-bottom:6px;">▸ REFERRED USERS (${a.referrals.length})</div>
+        <div style="max-height:180px;overflow-y:auto;">
+          ${a.referrals.slice(0,20).map(u=>`
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(0,245,255,.06);">
+            <div>
+              <div style="font-size:12px;font-weight:600;">${esc(u.name)}</div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--sub);">@${esc(u.username||'-')} · ${u.telegramId}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-family:'Orbitron',monospace;color:var(--grn);font-size:11px;">${(u.balance||0).toLocaleString()}</div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--sub);">${new Date(u.joinedAt).toLocaleDateString()}</div>
+            </div>
+          </div>`).join('')}
+          ${a.referrals.length>20?`<div style="text-align:center;padding:6px;font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--sub);">+${a.referrals.length-20} more</div>`:''}
+        </div>`:'<div style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--sub);text-align:center;padding:8px;">No referrals yet</div>'}
+      </div>`).join('');
+  }catch(e){el.innerHTML=`<div style="color:var(--red);padding:14px;text-align:center;font-size:12px;">Error: ${esc(e.message)}</div>`;}
 }
 
 /* ── AUTO REFRESH STATS ── */
